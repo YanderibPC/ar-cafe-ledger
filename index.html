@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AR Cafe — Ledger</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#111111;
+    --ink-soft:#5c5c5c;
+    --paper:#ffffff;
+    --paper-raised:#ffffff;
+    --line:#dcdcdc;
+    --forest:#111111;
+    --forest-dark:#000000;
+    --amber:#111111;
+    --amber-soft:#e6e6e6;
+    --rust:#111111;
+    --shadow: 0 1px 0 rgba(0,0,0,0.05);
+    --radius: 3px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: var(--paper);
+    color:var(--ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .display{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-weight:700; letter-spacing:-0.01em; }
+
+  .app{ max-width:980px; margin:0 auto; padding:28px 20px 80px; }
+
+  .letterhead{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:3px double var(--ink);
+    padding-bottom:14px; margin-bottom:6px;
+  }
+  .brand-block{ display:flex; align-items:center; gap:16px; }
+  .brand-logo{ width:56px; height:56px; object-fit:contain; background:#111; border-radius:8px; padding:4px; flex-shrink:0; }
+  .letterhead h1{
+    font-size:2.1rem; letter-spacing:-0.02em; margin:0; font-weight:800;
+    color:var(--ink);
+  }
+  .letterhead .sub{ font-size:0.72rem; color:var(--ink-soft); text-transform:uppercase; letter-spacing:1.5px; margin-top:4px;}
+  .letterhead .address{ font-size:0.72rem; color:var(--ink-soft); margin-top:3px; }
+  .stamp{
+    border:2px solid var(--ink); color:var(--ink); font-size:0.65rem; letter-spacing:2px;
+    padding:6px 10px; transform:rotate(-4deg); text-transform:uppercase; font-weight:bold; white-space:nowrap;
+    border-radius:2px;
+  }
+  .meta-line{ display:flex; justify-content:space-between; font-size:0.7rem; color:var(--ink-soft); margin:8px 0 20px; letter-spacing:0.5px;}
+
+  nav.tabs{
+    display:flex; flex-wrap:wrap; gap:6px; margin-bottom:22px; border-bottom:1px solid var(--line); padding-bottom:0;
+  }
+  nav.tabs button{
+    font-family:inherit; font-size:0.72rem; letter-spacing:1px; text-transform:uppercase;
+    background:transparent; border:1px solid var(--line); border-bottom:none;
+    padding:9px 14px; cursor:pointer; color:var(--ink-soft); border-radius:3px 3px 0 0;
+    position:relative; top:1px;
+  }
+  nav.tabs button.active{
+    background:var(--paper-raised); color:var(--ink); border-color:var(--line);
+    border-bottom:1px solid var(--paper-raised); font-weight:bold;
+  }
+  nav.tabs button:hover{ color:var(--forest); }
+
+  .panel{ display:none; }
+  .panel.active{ display:block; animation: fadein .25s ease; }
+  @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+  .card{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow: var(--shadow); padding:18px 20px; margin-bottom:18px;
+  }
+  .card h2{ font-size:1.05rem; margin:0 0 4px; color:var(--ink); font-weight:700;}
+  .card .hint{ font-size:0.7rem; color:var(--ink-soft); margin-bottom:14px;}
+
+  .summary-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px;}
+  .stat{ background:var(--paper-raised); border:1px solid var(--line); border-left:3px solid var(--ink); border-radius:var(--radius); padding:12px 14px;}
+  .stat .label{ font-size:0.62rem; text-transform:uppercase; letter-spacing:1px; color:var(--ink-soft); margin-bottom:6px;}
+  .stat .value{ font-size:1.35rem; font-weight:700;}
+  .stat.pos{ border-left-style:solid; }
+  .stat.neg{ border-left-style:dashed; }
+
+  table{ width:100%; border-collapse:collapse; font-size:0.78rem;}
+  th, td{ text-align:left; padding:7px 10px; border-bottom:1px solid var(--line);}
+  th{ text-transform:uppercase; font-size:0.62rem; letter-spacing:1px; color:var(--ink-soft); border-bottom:2px solid var(--ink);}
+  tr:hover td{ background:rgba(63,91,69,0.05); }
+  td.num, th.num{ text-align:right; font-variant-numeric:tabular-nums;}
+  .neg-amt{ font-weight:700; text-decoration:underline; text-decoration-style:dashed; text-underline-offset:2px;}
+
+  .row-flex{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px;}
+  label{ display:block; font-size:0.62rem; text-transform:uppercase; letter-spacing:1px; color:var(--ink-soft); margin-bottom:4px;}
+  select, input[type=number], input[type=text]{
+    font-family:inherit; font-size:0.8rem; padding:8px 9px; border:1px solid var(--line);
+    border-radius:2px; background:#fffdf7; color:var(--ink); min-width:110px;
+  }
+  select:focus, input:focus{ outline:2px solid var(--amber-soft); outline-offset:1px;}
+
+  button.btn{
+    font-family:inherit; font-size:0.72rem; text-transform:uppercase; letter-spacing:1px;
+    padding:9px 16px; border-radius:2px; border:1px solid var(--forest-dark); background:var(--forest);
+    color:#fdf9ee; cursor:pointer;
+  }
+  button.btn:hover{ background:var(--forest-dark); }
+  button.btn.secondary{ background:transparent; color:var(--ink); border-color:var(--line); }
+  button.btn.secondary:hover{ border-color:var(--ink); }
+  button.btn.danger{ background:transparent; color:var(--rust); border-color:var(--rust); padding:5px 9px; font-size:0.65rem;}
+  button.btn.danger:hover{ background:var(--rust); color:#fff; }
+  button.btn:disabled{ opacity:0.5; cursor:wait; }
+
+  .table-wrap{ max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:2px;}
+  .table-wrap table{ margin:0;}
+  .table-wrap thead th{ position:sticky; top:0; background:var(--paper-raised); z-index:1;}
+
+  .empty{ text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:0.8rem; font-style:italic;}
+
+  .toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:var(--paper); padding:10px 18px; border-radius:3px;
+    font-size:0.75rem; letter-spacing:0.5px; opacity:0; pointer-events:none; transition:all .25s ease;
+    z-index:50;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .chart-wrap{ height:280px; margin-top:6px;}
+
+  .report-header{ text-align:center; border-bottom:2px dashed var(--ink); padding-bottom:10px; margin-bottom:14px;}
+  .report-header h2{ margin:0 0 2px; font-size:1.3rem;}
+  .report-line{ display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px dotted var(--line); font-size:0.82rem;}
+  .report-line.total{ border-top:2px solid var(--ink); border-bottom:none; font-weight:bold; margin-top:6px; padding-top:10px;}
+  .report-line .neg{ font-weight:700; text-decoration:underline; text-decoration-style:dashed; text-underline-offset:2px;}
+  .report-line .pos{ font-weight:700; }
+
+  .badge{ display:inline-block; font-size:0.6rem; padding:2px 7px; border-radius:10px; letter-spacing:0.5px; text-transform:uppercase; border:1px solid var(--ink);}
+  .badge.rev{ background:var(--ink); color:#fff;}
+  .badge.exp{ background:#fff; color:var(--ink);}
+
+  footer.note{ text-align:center; font-size:0.65rem; color:var(--ink-soft); margin-top:30px; letter-spacing:0.5px;}
+
+  @media print{
+    nav.tabs, .no-print{ display:none !important; }
+    body{ background:#fff; }
+    .app{ max-width:100%; padding:0; }
+    .card{ box-shadow:none; border:none; }
+  }
+
+  @media (max-width:640px){
+    .letterhead{ flex-direction:column; align-items:flex-start; gap:10px;}
+    .letterhead h1{ font-size:1.5rem;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="letterhead">
+    <div class="brand-block">
+      <img src="data:image/jpeg;base64,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" alt="AR Cafe logo" class="brand-logo">
+      <div>
+        <h1>AR Cafe</h1>
+        <div class="sub">Master Financial Ledger — 2026</div>
+        <div class="address">Cadhit St., Brgy. Canuto Ramos, San Jose City, Nueva Ecija</div>
+      </div>
+    </div>
+    <div class="stamp" id="statusStamp">Loading…</div>
+  </div>
+  <div class="meta-line">
+    <span id="lastUpdated">—</span>
+    <span id="grandTotalLine">—</span>
+  </div>
+
+  <nav class="tabs">
+    <button data-tab="dashboard" class="active">Dashboard</button>
+    <button data-tab="gross_sales">Gross Sales</button>
+    <button data-tab="gcash">GCash</button>
+    <button data-tab="food_panda">Food Panda</button>
+    <button data-tab="grab">Grab</button>
+    <button data-tab="expenses">Expenses</button>
+    <button data-tab="reports">Reports</button>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <section class="panel active" id="panel-dashboard">
+    <div class="card">
+      <h2>Year at a glance</h2>
+      <div class="hint">Auto-calculated from every entry logged in the tabs below.</div>
+      <div class="summary-grid" id="yearSummary"></div>
+      <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Monthly Summary</h2>
+      <div class="hint">Same shape as the original spreadsheet's Dashboard tab — kept in sync automatically.</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Month</th><th class="num">Gross Sales</th><th class="num">GCash</th><th class="num">Food Panda</th>
+            <th class="num">Grab</th><th class="num">Total Revenue</th><th class="num">Expenses</th>
+            <th class="num">Net Income</th><th class="num">Margin</th>
+          </tr></thead>
+          <tbody id="dashboardBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- CATEGORY PANELS (templated by JS) -->
+  <section class="panel" id="panel-gross_sales"></section>
+  <section class="panel" id="panel-gcash"></section>
+  <section class="panel" id="panel-food_panda"></section>
+  <section class="panel" id="panel-grab"></section>
+  <section class="panel" id="panel-expenses"></section>
+
+  <!-- REPORTS -->
+  <section class="panel" id="panel-reports">
+    <div class="card no-print">
+      <h2>Generate a Report</h2>
+      <div class="hint">Pick a month to see a full breakdown of revenue, expenses, and net income.</div>
+      <div class="row-flex">
+        <div>
+          <label for="reportMonth">Month</label>
+          <select id="reportMonth"></select>
+        </div>
+        <button class="btn" id="buildReportBtn">Build Report</button>
+        <button class="btn secondary" id="printReportBtn">Print / Save as PDF</button>
+        <button class="btn secondary" id="exportCsvBtn">Export Month CSV</button>
+      </div>
+    </div>
+    <div class="card" id="reportOutput"></div>
+  </section>
+
+  <footer class="note">Configure the Google Sheets link in the script for shared, cross-device syncing — otherwise data is saved to this browser only</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script id="seed-data" type="application/json">{"expenses":[{"month":"January","day":1,"amount":1372.0},{"month":"January","day":3,"amount":330.0},{"month":"January","day":5,"amount":3243.0},{"month":"January","day":6,"amount":138.0},{"month":"January","day":8,"amount":797.0},{"month":"January","day":9,"amount":70.0},{"month":"January","day":11,"amount":70.0},{"month":"January","day":12,"amount":670.0},{"month":"January","day":13,"amount":70.0},{"month":"January","day":14,"amount":570.0},{"month":"January","day":15,"amount":70.0},{"month":"January","day":16,"amount":1287.0},{"month":"January","day":17,"amount":140.0},{"month":"January","day":18,"amount":442.0},{"month":"January","day":19,"amount":1075.0},{"month":"January","day":20,"amount":389.0},{"month":"January","day":21,"amount":608.0},{"month":"January","day":22,"amount":290.0},{"month":"January","day":23,"amount":70.0},{"month":"January","day":24,"amount":300.0},{"month":"January","day":26,"amount":1748.0},{"month":"January","day":27,"amount":70.0},{"month":"January","day":28,"amount":300.0},{"month":"January","day":29,"amount":70.0},{"month":"January","day":30,"amount":1442.0},{"month":"January","day":31,"amount":70.0},{"month":"February","day":2,"amount":70.0},{"month":"February","day":3,"amount":70.0},{"month":"February","day":4,"amount":1756.0},{"month":"February","day":6,"amount":70.0},{"month":"February","day":8,"amount":70.0},{"month":"February","day":9,"amount":70.0},{"month":"February","day":11,"amount":70.0},{"month":"February","day":12,"amount":70.0},{"month":"February","day":13,"amount":460.0},{"month":"February","day":14,"amount":120.0},{"month":"February","day":15,"amount":70.0},{"month":"February","day":16,"amount":70.0},{"month":"February","day":17,"amount":100.0},{"month":"February","day":18,"amount":210.0},{"month":"February","day":19,"amount":70.0},{"month":"February","day":20,"amount":70.0},{"month":"February","day":21,"amount":220.0},{"month":"February","day":22,"amount":180.0},{"month":"February","day":23,"amount":70.0},{"month":"February","day":24,"amount":70.0},{"month":"February","day":26,"amount":70.0},{"month":"February","day":27,"amount":90.0},{"month":"February","day":28,"amount":70.0},{"month":"March","day":1,"amount":20.0},{"month":"March","day":2,"amount":70.0},{"month":"March","day":3,"amount":140.0},{"month":"March","day":4,"amount":95.0},{"month":"March","day":5,"amount":70.0},{"month":"March","day":7,"amount":70.0},{"month":"March","day":8,"amount":135.0},{"month":"March","day":10,"amount":1692.0},{"month":"March","day":11,"amount":70.0},{"month":"March","day":12,"amount":70.0},{"month":"March","day":13,"amount":70.0},{"month":"March","day":14,"amount":70.0},{"month":"March","day":15,"amount":5.0},{"month":"March","day":16,"amount":1518.0},{"month":"March","day":17,"amount":70.0},{"month":"March","day":18,"amount":70.0},{"month":"March","day":19,"amount":345.0},{"month":"March","day":20,"amount":70.0},{"month":"March","day":22,"amount":70.0},{"month":"March","day":23,"amount":135.0},{"month":"March","day":24,"amount":475.0},{"month":"March","day":26,"amount":1448.0},{"month":"March","day":27,"amount":70.0},{"month":"March","day":28,"amount":270.0},{"month":"March","day":30,"amount":70.0},{"month":"March","day":31,"amount":30.0},{"month":"April","day":1,"amount":94.0},{"month":"April","day":2,"amount":70.0},{"month":"April","day":5,"amount":70.0},{"month":"April","day":6,"amount":1414.0},{"month":"April","day":7,"amount":70.0},{"month":"April","day":8,"amount":4975.79},{"month":"April","day":9,"amount":95.0},{"month":"April","day":10,"amount":8768.0},{"month":"April","day":11,"amount":70.0},{"month":"April","day":13,"amount":936.0},{"month":"April","day":14,"amount":130.0},{"month":"April","day":15,"amount":897.0},{"month":"April","day":16,"amount":70.0},{"month":"April","day":17,"amount":80.0},{"month":"April","day":18,"amount":200.0},{"month":"April","day":19,"amount":80.0},{"month":"April","day":20,"amount":430.0},{"month":"April","day":21,"amount":70.0},{"month":"April","day":22,"amount":70.0},{"month":"April","day":24,"amount":730.0},{"month":"April","day":25,"amount":8250.0},{"month":"April","day":26,"amount":70.0},{"month":"April","day":27,"amount":70.0},{"month":"April","day":28,"amount":211.0},{"month":"April","day":29,"amount":320.0},{"month":"April","day":30,"amount":75.0},{"month":"May","day":1,"amount":70.0},{"month":"May","day":3,"amount":70.0},{"month":"May","day":4,"amount":70.0},{"month":"May","day":5,"amount":245.0},{"month":"May","day":6,"amount":20.0},{"month":"May","day":7,"amount":353.0},{"month":"May","day":8,"amount":75.0},{"month":"May","day":9,"amount":70.0},{"month":"May","day":11,"amount":70.0},{"month":"May","day":12,"amount":979.0},{"month":"May","day":13,"amount":70.0},{"month":"May","day":14,"amount":70.0},{"month":"May","day":15,"amount":1975.0},{"month":"May","day":16,"amount":70.0},{"month":"May","day":17,"amount":70.0},{"month":"May","day":18,"amount":70.0},{"month":"May","day":19,"amount":530.0},{"month":"May","day":20,"amount":70.0},{"month":"May","day":21,"amount":70.0},{"month":"May","day":22,"amount":70.0},{"month":"May","day":23,"amount":240.0},{"month":"May","day":24,"amount":70.0},{"month":"May","day":26,"amount":70.0},{"month":"May","day":27,"amount":70.0},{"month":"May","day":28,"amount":385.0},{"month":"May","day":29,"amount":70.0},{"month":"May","day":30,"amount":185.0},{"month":"May","day":31,"amount":451.0},{"month":"June","day":1,"amount":70.0},{"month":"June","day":2,"amount":641.0},{"month":"June","day":4,"amount":70.0},{"month":"June","day":5,"amount":420.0},{"month":"June","day":6,"amount":320.0},{"month":"June","day":7,"amount":187.0},{"month":"June","day":8,"amount":12742.0},{"month":"June","day":9,"amount":70.0},{"month":"June","day":10,"amount":7989.0},{"month":"June","day":11,"amount":70.0},{"month":"June","day":12,"amount":1460.0},{"month":"June","day":14,"amount":70.0},{"month":"June","day":15,"amount":1368.0},{"month":"June","day":16,"amount":70.0},{"month":"June","day":17,"amount":221.0},{"month":"June","day":18,"amount":70.0},{"month":"June","day":19,"amount":648.0},{"month":"June","day":20,"amount":755.0},{"month":"June","day":21,"amount":1720.0},{"month":"June","day":22,"amount":366.0},{"month":"June","day":23,"amount":325.0},{"month":"June","day":24,"amount":861.0},{"month":"June","day":25,"amount":300.0},{"month":"June","day":26,"amount":70.0},{"month":"June","day":27,"amount":6882.0},{"month":"June","day":28,"amount":433.0},{"month":"June","day":29,"amount":70.0},{"month":"June","day":30,"amount":115.0}],"gcash":[{"month":"January","day":1,"amount":170.0},{"month":"January","day":2,"amount":280.0},{"month":"January","day":3,"amount":150.0},{"month":"January","day":5,"amount":170.0},{"month":"January","day":9,"amount":685.0},{"month":"January","day":10,"amount":1119.0},{"month":"January","day":13,"amount":330.0},{"month":"January","day":14,"amount":224.0},{"month":"January","day":15,"amount":150.0},{"month":"January","day":23,"amount":315.0},{"month":"January","day":26,"amount":325.0},{"month":"January","day":28,"amount":605.0},{"month":"January","day":29,"amount":170.0},{"month":"January","day":30,"amount":448.0},{"month":"January","day":31,"amount":250.0},{"month":"February","day":3,"amount":595.0},{"month":"February","day":4,"amount":280.0},{"month":"February","day":5,"amount":610.0},{"month":"February","day":11,"amount":270.0},{"month":"February","day":12,"amount":95.0},{"month":"February","day":19,"amount":140.0},{"month":"February","day":20,"amount":350.0},{"month":"February","day":23,"amount":859.0},{"month":"February","day":24,"amount":170.0},{"month":"March","day":1,"amount":433.0},{"month":"March","day":5,"amount":459.0},{"month":"March","day":14,"amount":310.0},{"month":"March","day":15,"amount":1475.0},{"month":"March","day":17,"amount":150.0},{"month":"March","day":19,"amount":340.0},{"month":"March","day":23,"amount":195.0},{"month":"March","day":24,"amount":817.0},{"month":"April","day":1,"amount":150.0},{"month":"April","day":3,"amount":510.0},{"month":"April","day":6,"amount":600.0},{"month":"April","day":15,"amount":320.0},{"month":"April","day":16,"amount":310.0},{"month":"April","day":18,"amount":160.0},{"month":"April","day":19,"amount":150.0},{"month":"April","day":20,"amount":599.0},{"month":"April","day":21,"amount":250.0},{"month":"April","day":22,"amount":600.0},{"month":"April","day":24,"amount":150.0},{"month":"April","day":30,"amount":340.0},{"month":"May","day":4,"amount":1063.0},{"month":"May","day":7,"amount":778.0},{"month":"May","day":8,"amount":510.0},{"month":"May","day":15,"amount":580.0},{"month":"May","day":16,"amount":320.0},{"month":"May","day":21,"amount":325.0},{"month":"May","day":22,"amount":110.0},{"month":"May","day":28,"amount":1045.0},{"month":"June","day":3,"amount":250.0},{"month":"June","day":5,"amount":420.0},{"month":"June","day":6,"amount":150.0},{"month":"June","day":8,"amount":980.0},{"month":"June","day":16,"amount":620.0},{"month":"June","day":21,"amount":485.0},{"month":"June","day":24,"amount":180.0},{"month":"June","day":25,"amount":190.0},{"month":"June","day":28,"amount":150.0},{"month":"June","day":30,"amount":620.0}],"gross_sales":[{"month":"January","day":9,"amount":600.0},{"month":"January","day":11,"amount":378.0},{"month":"January","day":12,"amount":1161.0},{"month":"January","day":13,"amount":380.0},{"month":"January","day":15,"amount":380.0},{"month":"January","day":16,"amount":908.0},{"month":"January","day":17,"amount":998.0},{"month":"January","day":19,"amount":2107.0},{"month":"January","day":20,"amount":231.0},{"month":"January","day":22,"amount":172.0},{"month":"January","day":23,"amount":1089.0},{"month":"January","day":25,"amount":910.0},{"month":"January","day":26,"amount":101.0},{"month":"January","day":27,"amount":1135.0},{"month":"January","day":28,"amount":865.0},{"month":"January","day":29,"amount":495.0},{"month":"January","day":30,"amount":480.0},{"month":"January","day":31,"amount":203.0},{"month":"February","day":1,"amount":340.0},{"month":"February","day":2,"amount":1269.0},{"month":"February","day":3,"amount":110.0},{"month":"February","day":4,"amount":340.0},{"month":"February","day":6,"amount":523.0},{"month":"February","day":7,"amount":349.0},{"month":"February","day":9,"amount":390.0},{"month":"February","day":10,"amount":518.0},{"month":"February","day":11,"amount":843.0},{"month":"February","day":12,"amount":25.0},{"month":"February","day":14,"amount":1578.0},{"month":"February","day":15,"amount":15.0},{"month":"February","day":16,"amount":644.0},{"month":"February","day":17,"amount":170.0},{"month":"February","day":18,"amount":89.0},{"month":"February","day":19,"amount":645.0},{"month":"February","day":20,"amount":1083.0},{"month":"February","day":21,"amount":998.0},{"month":"February","day":22,"amount":80.0},{"month":"February","day":23,"amount":100.0},{"month":"February","day":24,"amount":379.0},{"month":"February","day":25,"amount":1220.0},{"month":"February","day":27,"amount":340.0},{"month":"March","day":1,"amount":644.0},{"month":"March","day":2,"amount":70.0},{"month":"March","day":3,"amount":205.0},{"month":"March","day":4,"amount":205.0},{"month":"March","day":5,"amount":30.0},{"month":"March","day":6,"amount":465.0},{"month":"March","day":8,"amount":585.0},{"month":"March","day":9,"amount":514.0},{"month":"March","day":10,"amount":150.0},{"month":"March","day":11,"amount":340.0},{"month":"March","day":12,"amount":695.0},{"month":"March","day":13,"amount":619.0},{"month":"March","day":14,"amount":1032.0},{"month":"March","day":15,"amount":1280.0},{"month":"March","day":18,"amount":56.0},{"month":"March","day":19,"amount":1372.0},{"month":"March","day":20,"amount":895.0},{"month":"March","day":25,"amount":777.0},{"month":"March","day":26,"amount":46.0},{"month":"March","day":27,"amount":1313.0},{"month":"March","day":28,"amount":70.0},{"month":"March","day":30,"amount":380.0},{"month":"March","day":31,"amount":490.0},{"month":"April","day":1,"amount":555.0},{"month":"April","day":2,"amount":388.0},{"month":"April","day":3,"amount":1100.0},{"month":"April","day":5,"amount":1299.0},{"month":"April","day":6,"amount":466.0},{"month":"April","day":7,"amount":345.0},{"month":"April","day":8,"amount":265.0},{"month":"April","day":9,"amount":95.0},{"month":"April","day":10,"amount":447.0},{"month":"April","day":11,"amount":365.0},{"month":"April","day":12,"amount":100.0},{"month":"April","day":13,"amount":913.0},{"month":"April","day":14,"amount":498.0},{"month":"April","day":15,"amount":1668.0},{"month":"April","day":16,"amount":455.0},{"month":"April","day":17,"amount":410.0},{"month":"April","day":18,"amount":2853.0},{"month":"April","day":19,"amount":490.0},{"month":"April","day":20,"amount":345.0},{"month":"April","day":21,"amount":475.0},{"month":"April","day":22,"amount":500.0},{"month":"April","day":23,"amount":95.0},{"month":"April","day":25,"amount":125.0},{"month":"April","day":26,"amount":90.0},{"month":"April","day":27,"amount":120.0},{"month":"April","day":28,"amount":394.0},{"month":"April","day":30,"amount":304.0},{"month":"May","day":1,"amount":130.0},{"month":"May","day":3,"amount":344.0},{"month":"May","day":4,"amount":380.0},{"month":"May","day":5,"amount":469.0},{"month":"May","day":8,"amount":69.0},{"month":"May","day":9,"amount":385.0},{"month":"May","day":10,"amount":600.0},{"month":"May","day":11,"amount":100.0},{"month":"May","day":12,"amount":1734.0},{"month":"May","day":13,"amount":1140.0},{"month":"May","day":14,"amount":240.0},{"month":"May","day":15,"amount":380.0},{"month":"May","day":18,"amount":265.0},{"month":"May","day":19,"amount":204.0},{"month":"May","day":20,"amount":520.0},{"month":"May","day":21,"amount":100.0},{"month":"May","day":22,"amount":270.0},{"month":"May","day":23,"amount":70.0},{"month":"May","day":24,"amount":525.0},{"month":"May","day":25,"amount":80.0},{"month":"May","day":26,"amount":709.0},{"month":"May","day":27,"amount":205.0},{"month":"May","day":28,"amount":30.0},{"month":"May","day":30,"amount":643.0},{"month":"June","day":1,"amount":629.0},{"month":"June","day":4,"amount":270.0},{"month":"June","day":6,"amount":245.0},{"month":"June","day":7,"amount":283.0},{"month":"June","day":9,"amount":775.0},{"month":"June","day":10,"amount":279.0},{"month":"June","day":12,"amount":291.0},{"month":"June","day":13,"amount":330.0},{"month":"June","day":14,"amount":1466.0},{"month":"June","day":15,"amount":815.0},{"month":"June","day":16,"amount":180.0},{"month":"June","day":17,"amount":494.0},{"month":"June","day":18,"amount":30.0},{"month":"June","day":19,"amount":1295.0},{"month":"June","day":20,"amount":492.0},{"month":"June","day":21,"amount":80.0},{"month":"June","day":22,"amount":140.0},{"month":"June","day":23,"amount":500.0},{"month":"June","day":24,"amount":110.0},{"month":"June","day":26,"amount":1319.0},{"month":"June","day":30,"amount":330.0},{"month":"July","day":1,"amount":100.0},{"month":"July","day":2,"amount":30.0},{"month":"July","day":3,"amount":836.0}],"food_panda":[{"month":"June","day":3,"amount":356.0},{"month":"June","day":4,"amount":1303.0},{"month":"June","day":6,"amount":446.0},{"month":"June","day":7,"amount":950.0},{"month":"June","day":8,"amount":684.0},{"month":"June","day":9,"amount":532.0},{"month":"June","day":12,"amount":948.0},{"month":"June","day":13,"amount":135.0},{"month":"June","day":14,"amount":962.0},{"month":"June","day":17,"amount":270.0},{"month":"June","day":18,"amount":135.0},{"month":"June","day":19,"amount":746.0},{"month":"June","day":20,"amount":868.0},{"month":"June","day":24,"amount":178.0},{"month":"June","day":27,"amount":178.0}],"grab":[{"month":"June","day":7,"amount":440.0},{"month":"June","day":16,"amount":300.0},{"month":"June","day":18,"amount":170.0}]}</script>
+<script>
+/* ================= CONFIG ================= */
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const CATS = {
+  gross_sales: { label:"Gross Sales (Remit)", type:"revenue", unit:"Amount (PHP)" },
+  gcash:       { label:"GCash Payments",       type:"revenue", unit:"Net Amount (PHP)" },
+  food_panda:  { label:"Food Panda",           type:"revenue", unit:"Amount (PHP)" },
+  grab:        { label:"Grab",                 type:"revenue", unit:"Amount (PHP)" },
+  expenses:    { label:"Expenses",             type:"expense", unit:"Amount (PHP)" },
+};
+const STORAGE_KEY = "arcafe:ledger:v1";
+
+/* --- Fill this in after deploying the Apps Script Web App (see setup notes) ---
+   Looks like: https://script.google.com/macros/s/AKfycb.../exec
+   Leave as-is to run in local-only mode (data stays in this browser). */
+const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbyuQP4Y2AtZu0HivjFMqQXfaV0dlzr82bSKZ8Wa-4OAY5vcxz5W-lzWfDcue2msrI_C5g/exec";
+
+/* Optional: set a PIN so casual visitors can't view/edit your numbers.
+   Leave as "" to disable. This is a light deterrent, not real security —
+   see the setup notes for a stronger option. */
+const ACCESS_PIN = "";
+
+let useCloud = SHEET_API_URL.startsWith("http") && !SHEET_API_URL.includes("PASTE_YOUR");
+
+
+
+let DATA = null; // { gross_sales:[...], gcash:[...], food_panda:[...], grab:[...], expenses:[...] }
+let saving = false;
+
+/* ================= UTIL ================= */
+const fmt = (n) => "₱" + Number(n||0).toLocaleString("en-PH", {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtCompact = (n) => "₱" + Number(n||0).toLocaleString("en-PH", {maximumFractionDigits:0});
+function uid(){ return 'x' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._h);
+  toast._h = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function setStamp(text, ok=true){
+  const s = document.getElementById('statusStamp');
+  s.textContent = text;
+  s.style.borderColor = ok ? 'var(--forest-dark)' : 'var(--rust)';
+  s.style.color = ok ? 'var(--forest-dark)' : 'var(--rust)';
+}
+
+/* ================= STORAGE ================= */
+function seedToRows(){
+  const seed = JSON.parse(document.getElementById('seed-data').textContent);
+  const rows = [];
+  for(const key of Object.keys(CATS)){
+    (seed[key]||[]).forEach(r => rows.push({ category:key, month:r.month, day:r.day, amount:r.amount }));
+  }
+  return rows;
+}
+
+function emptyData(){
+  const d = {};
+  for(const key of Object.keys(CATS)) d[key] = [];
+  return d;
+}
+
+async function sheetApiCall(payload){
+  const res = await fetch(SHEET_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+  const json = await res.json();
+  if(json.error) throw new Error(json.error);
+  return json;
+}
+
+async function loadData(){
+  if(useCloud){
+    try{
+      const res = await fetch(SHEET_API_URL);
+      let rows = await res.json();
+      if(!Array.isArray(rows)) throw new Error(rows.error || "Unexpected response");
+      if(rows.length === 0){
+        const seedRows = seedToRows();
+        rows = await sheetApiCall({ action:'seed', rows: seedRows });
+      }
+      DATA = emptyData();
+      rows.forEach(row => {
+        if(DATA[row.category]) DATA[row.category].push({ id: row.id, month: row.month, day: Number(row.day), amount: Number(row.amount) });
+      });
+      setStamp("Loaded — Google Sheets");
+      document.getElementById('lastUpdated').textContent = "Synced with Google Sheets";
+      return;
+    }catch(e){
+      console.error(e);
+      setStamp("Cloud error — local copy", false);
+      toast("Couldn't reach Google Sheets — using a local copy instead");
+    }
+  }
+  loadLocal();
+}
+
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      DATA = JSON.parse(raw);
+      if(!useCloud) setStamp("Loaded — This Browser Only");
+      return;
+    }
+  }catch(e){ /* localStorage unavailable */ }
+  const seed = JSON.parse(document.getElementById('seed-data').textContent);
+  DATA = emptyData();
+  for(const key of Object.keys(CATS)){
+    DATA[key] = (seed[key]||[]).map(r => ({ id: uid(), month:r.month, day:r.day, amount:r.amount }));
+  }
+  if(!useCloud) setStamp("Loaded — Original Data");
+  persistLocal(true);
+}
+
+function persistLocal(silent){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
+    document.getElementById('lastUpdated').textContent = "Saved " + new Date().toLocaleString("en-PH", {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) + " (this browser)";
+    if(!silent) toast("Saved ✓");
+  }catch(e){
+    toast("Could not save — this browser may be out of storage space");
+  }
+}
+
+
+/* ================= CALC ================= */
+function monthTotals(){
+  const out = {};
+  for(const m of MONTHS){
+    out[m] = { gross_sales:0, gcash:0, food_panda:0, grab:0, expenses:0 };
+  }
+  for(const key of Object.keys(CATS)){
+    for(const row of DATA[key]){
+      if(out[row.month]) out[row.month][key] += Number(row.amount)||0;
+    }
+  }
+  const summary = {};
+  for(const m of MONTHS){
+    const t = out[m];
+    const revenue = t.gross_sales + t.gcash + t.food_panda + t.grab;
+    const net = revenue - t.expenses;
+    const margin = revenue !== 0 ? (net/revenue) : 0;
+    summary[m] = {...t, revenue, expenses:t.expenses, net, margin};
+  }
+  return summary;
+}
+
+/* ================= RENDER: DASHBOARD ================= */
+let chartInstance = null;
+function renderDashboard(){
+  const summary = monthTotals();
+  const activeMonths = MONTHS.filter(m => summary[m].revenue !== 0 || summary[m].expenses !== 0);
+
+  let totalRevenue=0, totalExpenses=0;
+  for(const m of MONTHS){ totalRevenue += summary[m].revenue; totalExpenses += summary[m].expenses; }
+  const totalNet = totalRevenue - totalExpenses;
+
+  const grid = document.getElementById('yearSummary');
+  grid.innerHTML = `
+    <div class="stat"><div class="label">Total Revenue</div><div class="value">${fmtCompact(totalRevenue)}</div></div>
+    <div class="stat"><div class="label">Total Expenses</div><div class="value">${fmtCompact(totalExpenses)}</div></div>
+    <div class="stat ${totalNet>=0?'pos':'neg'}"><div class="label">Net Income</div><div class="value">${fmtCompact(totalNet)}</div></div>
+    <div class="stat"><div class="label">Months Active</div><div class="value">${activeMonths.length} / 12</div></div>
+  `;
+  document.getElementById('grandTotalLine').textContent =
+    `Net Income (Year): ${fmt(totalNet)}`;
+
+  const body = document.getElementById('dashboardBody');
+  body.innerHTML = MONTHS.map(m => {
+    const t = summary[m];
+    const netClass = t.net < 0 ? 'neg-amt' : '';
+    return `<tr>
+      <td>${m}</td>
+      <td class="num">${fmtCompact(t.gross_sales)}</td>
+      <td class="num">${fmtCompact(t.gcash)}</td>
+      <td class="num">${fmtCompact(t.food_panda)}</td>
+      <td class="num">${fmtCompact(t.grab)}</td>
+      <td class="num">${fmtCompact(t.revenue)}</td>
+      <td class="num">${fmtCompact(t.expenses)}</td>
+      <td class="num ${netClass}">${fmtCompact(t.net)}</td>
+      <td class="num">${(t.margin*100).toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+
+  const ctx = document.getElementById('mainChart');
+  const labels = MONTHS.map(m=>m.slice(0,3));
+  const revData = MONTHS.map(m=>summary[m].revenue);
+  const expData = MONTHS.map(m=>summary[m].expenses);
+  if(chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Revenue', data:revData, backgroundColor:'#111111' },
+      { label:'Expenses', data:expData, backgroundColor:'#b0b0b0' },
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#111111' } } },
+      scales:{
+        x:{ ticks:{ color:'#5c5c5c' }, grid:{ display:false } },
+        y:{ ticks:{ color:'#5c5c5c', callback:(v)=>fmtCompact(v) }, grid:{ color:'#dcdcdc' } }
+      }
+    }
+  });
+}
+
+/* ================= RENDER: CATEGORY PANELS ================= */
+function categoryTotal(key, monthFilter){
+  return DATA[key]
+    .filter(r => monthFilter==='All' || r.month===monthFilter)
+    .reduce((s,r)=>s+Number(r.amount||0),0);
+}
+
+function buildCategoryPanelShell(key){
+  const meta = CATS[key];
+  const panel = document.getElementById('panel-'+key);
+  panel.innerHTML = `
+    <div class="card">
+      <h2>${meta.label} <span class="badge ${meta.type==='revenue'?'rev':'exp'}">${meta.type}</span></h2>
+      <div class="hint">Add a daily entry, filter by month, or remove a row. Totals recalculate everywhere instantly.</div>
+      <div class="row-flex">
+        <div>
+          <label>Month</label>
+          <select data-role="month">
+            <option value="All">All Months</option>
+            ${MONTHS.map(m=>`<option value="${m}">${m}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Day</label>
+          <input type="number" min="1" max="31" data-role="day" placeholder="e.g. 14" style="width:80px;">
+        </div>
+        <div>
+          <label>${meta.unit}</label>
+          <input type="number" min="0" step="0.01" data-role="amount" placeholder="0.00" style="width:120px;">
+        </div>
+        <button class="btn" data-role="add">+ Add Entry</button>
+        <div style="margin-left:auto; text-align:right;">
+          <label>Filtered Total</label>
+          <div style="font-size:1.1rem; font-weight:700;" data-role="total">—</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Month</th><th>Day</th><th class="num">${meta.unit}</th><th class="no-print"></th></tr></thead>
+          <tbody data-role="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  const monthSelect = panel.querySelector('[data-role="month"]');
+  monthSelect.addEventListener('change', ()=>renderCategoryTable(key));
+  panel.querySelector('[data-role="add"]').addEventListener('click', ()=>addEntry(key));
+}
+
+function renderCategoryTable(key){
+  const panel = document.getElementById('panel-'+key);
+  const filter = panel.querySelector('[data-role="month"]').value;
+  const rows = DATA[key]
+    .filter(r => filter==='All' || r.month===filter)
+    .slice()
+    .sort((a,b)=> MONTHS.indexOf(a.month)-MONTHS.indexOf(b.month) || a.day-b.day);
+
+  const tbody = panel.querySelector('[data-role="rows"]');
+  if(rows.length===0){
+    tbody.innerHTML = `<tr><td colspan="4" class="empty">No entries yet ${filter!=='All' ? 'for '+filter : ''}. Add one above.</td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map(r => `
+      <tr data-id="${r.id}">
+        <td>${r.month}</td>
+        <td>${r.day}</td>
+        <td class="num">${fmt(r.amount)}</td>
+        <td class="no-print"><button class="btn danger" data-role="del" data-id="${r.id}">Remove</button></td>
+      </tr>
+    `).join('');
+  }
+  tbody.querySelectorAll('[data-role="del"]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>removeEntry(key, e.target.getAttribute('data-id')));
+  });
+
+  panel.querySelector('[data-role="total"]').textContent = fmt(categoryTotal(key, filter));
+}
+
+async function addEntry(key){
+  const panel = document.getElementById('panel-'+key);
+  const month = panel.querySelector('[data-role="month"]').value;
+  const dayInput = panel.querySelector('[data-role="day"]');
+  const amountInput = panel.querySelector('[data-role="amount"]');
+  const day = parseInt(dayInput.value, 10);
+  const amount = parseFloat(amountInput.value);
+  const addBtn = panel.querySelector('[data-role="add"]');
+
+  if(month === 'All'){ toast("Pick a specific month first"); return; }
+  if(!day || day < 1 || day > 31){ toast("Enter a valid day (1–31)"); return; }
+  if(isNaN(amount) || amount < 0){ toast("Enter a valid amount"); return; }
+
+  addBtn.disabled = true;
+  if(useCloud){
+    try{
+      const data = await sheetApiCall({ action:'add', category:key, month, day, amount });
+      DATA[key].push({ id: data.id, month: data.month, day: Number(data.day), amount: Number(data.amount) });
+    }catch(e){
+      console.error(e);
+      toast("Couldn't save to Google Sheets — check your setup");
+      addBtn.disabled = false;
+      return;
+    }
+  } else {
+    DATA[key].push({ id: uid(), month, day, amount });
+    persistLocal(true);
+  }
+  dayInput.value = ''; amountInput.value = '';
+  renderCategoryTable(key);
+  renderDashboard();
+  addBtn.disabled = false;
+  toast("Entry added");
+}
+
+async function removeEntry(key, id){
+  if(useCloud){
+    try{
+      await sheetApiCall({ action:'delete', id });
+    }catch(e){
+      console.error(e);
+      toast("Couldn't remove from Google Sheets — check your setup");
+      return;
+    }
+  }
+  DATA[key] = DATA[key].filter(r => r.id !== id);
+  if(!useCloud) persistLocal(true);
+  renderCategoryTable(key);
+  renderDashboard();
+  toast("Entry removed");
+}
+
+
+/* ================= REPORTS ================= */
+function populateReportMonths(){
+  const sel = document.getElementById('reportMonth');
+  sel.innerHTML = MONTHS.map(m=>`<option value="${m}">${m}</option>`).join('');
+  const now = new Date();
+  const curName = MONTHS[Math.min(now.getMonth(),11)];
+  sel.value = curName;
+}
+
+function buildReport(){
+  const month = document.getElementById('reportMonth').value;
+  const summary = monthTotals()[month];
+  const out = document.getElementById('reportOutput');
+
+  const rowsFor = (key) => DATA[key].filter(r=>r.month===month).sort((a,b)=>a.day-b.day);
+  const revenueRows = ['gross_sales','gcash','food_panda','grab'];
+
+  out.innerHTML = `
+    <div class="report-header">
+      <h2 class="display">AR Cafe — Monthly Report</h2>
+      <div>${month} 2026</div>
+    </div>
+    <div class="report-line"><span>Gross Sales (Remit)</span><span>${fmt(summary.gross_sales)}</span></div>
+    <div class="report-line"><span>GCash Payments</span><span>${fmt(summary.gcash)}</span></div>
+    <div class="report-line"><span>Food Panda</span><span>${fmt(summary.food_panda)}</span></div>
+    <div class="report-line"><span>Grab</span><span>${fmt(summary.grab)}</span></div>
+    <div class="report-line total"><span>Total Revenue</span><span>${fmt(summary.revenue)}</span></div>
+    <div class="report-line"><span>Total Expenses</span><span>${fmt(summary.expenses)}</span></div>
+    <div class="report-line total"><span>Net Income</span><span class="${summary.net>=0?'pos':'neg'}">${fmt(summary.net)}</span></div>
+    <div class="report-line"><span>Net Margin</span><span>${(summary.margin*100).toFixed(1)}%</span></div>
+
+    <h2 class="display" style="margin-top:26px;">Transaction Detail — ${month}</h2>
+    ${revenueRows.concat(['expenses']).map(key=>{
+      const rows = rowsFor(key);
+      if(rows.length===0) return '';
+      return `<h3 style="font-size:0.85rem; margin:16px 0 6px;">${CATS[key].label} <span class="badge ${CATS[key].type==='revenue'?'rev':'exp'}">${CATS[key].type}</span></h3>
+      <table><thead><tr><th>Day</th><th class="num">${CATS[key].unit}</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${r.day}</td><td class="num">${fmt(r.amount)}</td></tr>`).join('')}</tbody></table>`;
+    }).join('') || '<p class="empty">No transactions logged for this month yet.</p>'}
+  `;
+}
+
+function exportMonthCsv(){
+  const month = document.getElementById('reportMonth').value;
+  let lines = ['Category,Type,Day,Amount'];
+  for(const key of Object.keys(CATS)){
+    DATA[key].filter(r=>r.month===month).sort((a,b)=>a.day-b.day).forEach(r=>{
+      lines.push(`${CATS[key].label},${CATS[key].type},${r.day},${r.amount}`);
+    });
+  }
+  const summary = monthTotals()[month];
+  lines.push('');
+  lines.push(`Total Revenue,,,${summary.revenue}`);
+  lines.push(`Total Expenses,,,${summary.expenses}`);
+  lines.push(`Net Income,,,${summary.net}`);
+
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `AR_Cafe_${month}_2026_report.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast("CSV downloaded");
+}
+
+/* ================= TABS ================= */
+function initTabs(){
+  document.querySelectorAll('nav.tabs button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-'+btn.getAttribute('data-tab')).classList.add('active');
+    });
+  });
+}
+
+/* ================= INIT ================= */
+function checkPin(){
+  if(!ACCESS_PIN) return true;
+  if(sessionStorage.getItem('arcafe:unlocked') === 'yes') return true;
+  const entered = prompt("Enter access PIN to open the AR Cafe ledger:");
+  if(entered === ACCESS_PIN){
+    sessionStorage.setItem('arcafe:unlocked', 'yes');
+    return true;
+  }
+  document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; font-family:sans-serif; color:#111;">Incorrect PIN. Refresh the page to try again.</div>';
+  return false;
+}
+
+async function init(){
+  if(!checkPin()) return;
+  initTabs();
+  await loadData();
+
+  for(const key of Object.keys(CATS)){
+    buildCategoryPanelShell(key);
+    renderCategoryTable(key);
+  }
+  renderDashboard();
+  populateReportMonths();
+  buildReport();
+
+  document.getElementById('buildReportBtn').addEventListener('click', buildReport);
+  document.getElementById('printReportBtn').addEventListener('click', ()=>window.print());
+  document.getElementById('exportCsvBtn').addEventListener('click', exportMonthCsv);
+}
+
+init();
+</script>
+</body>
+</html>
